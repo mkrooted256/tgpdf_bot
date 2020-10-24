@@ -1,5 +1,6 @@
 import subprocess
 import logging
+import os
 import time
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
 from telegram import ParseMode
@@ -107,14 +108,20 @@ def compile_pdf(update, context):
                 document=open(pdfname, 'rb'),
                 filename=context.user_data['filename'] + '.pdf'
             )
+            os.remove(pdfname)
         else:
             update.message.reply_text('unknown error. try again later.')
+
+        for i in images:
+            os.remove(i)
     except subprocess.CalledProcessError as err:
         update.message.reply_text('bot error. try again later.')
         logger.error("magick error: " + err.cmd + "\n>>>" + err.output + "<<<")
     except subprocess.TimeoutExpired as err:
         update.message.reply_text('pdf compilation took too long. try adding less photos or using compression instead of jpg files.')
         logger.error("magick too long: " + err.cmd + "\n>>>" + err.output + "<<<")
+    except err:
+        logger.error(err)
 
     context.user_data.clear()
     return ConversationHandler.END
@@ -141,6 +148,9 @@ def quality(update, context):
 # -------------------------
 
 def main():
+    if not os.path.exists("cache"):
+        os.mkdir("cache")
+
     token = None
     with open('token') as f:
         token = f.read()
