@@ -79,7 +79,7 @@ def newpdf(user, quick=False):
 def newpdf_handler(update, context):
     user = update.message.from_user
     newpdf(user)
-    update.message.reply_text(f"New PDF. Enter document name", parse_mode=ParseMode.HTML)
+    update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML)
     return FILENAME
 
 def invalid_filename(update, context):
@@ -175,12 +175,13 @@ def quality(update, context):
 
 def help_handler(update, context):
     update.message.reply_text(
-        'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and *.jpg files (sent without compression, \'as file\').\n'
+        'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and *.jpg files (sent without compression, \'as file\').\n\n'
         'There are 2 ways:\n'
-        '1. send /start or /newpdf, enter pdf name then send images;\n'
+        '1. send /start or /newpdf, enter pdf name, then send images;\n'
         '2. just send me some images, then /compile and enter pdf name.\n'
         'You can cancel operation anytime using /cancel; then you will be able to start again.\n'
         '<i>By the way, I delete all your images right after sending you PDF.</i>\n\n'
+        'developer - @mkrooted\n'
         'also pls consider donating (servers aren\'t free) - 4441114448609220',
         parse_mode=ParseMode.HTML
     )
