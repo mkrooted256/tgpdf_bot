@@ -36,26 +36,26 @@ def compile_pdf(update, context):
     update.message.reply_text('compiling...\n' 'it can take up to several minutes')
     quality = context.user_data['quality'] if 'quality' in context.user_data else DEFAULT_QUALITY
     uid = update.message.from_user.id
-    im_n = context.user_data['images']
-    images = [f'cache/{uid}-{i}' for i in range(im_n)]
+    images = context.user_data['images'] # [f'cache/{uid}-{i}' for i in range(im_n)]
     pdfname = f'cache/{uid}.pdf'
 
     # magick is better for large. otherwise pdf is too large
     pdf_converter = MAGICK if context.user_data['largefiles'] else IMG2PDF 
     
     args = pdfcmd(images, pdfname, pdf_converter, quality)
-    logger.info(f'compiling {im_n} photos, {pdf_converter} -> {pdfname}:')
+    logger.info(f'compiling {len(images)} photos, {pdf_converter} -> {pdfname}:')
     try:
         t = time.time()
         result = subprocess.run(args, shell=True, capture_output=True, check=True, timeout=40)
         t = round(time.time() - t, 2)
-        logger.info(f'u{uid} compilation success in {t}s')
+        fsize = os.stat(pdfname).st_size/1000000
+        logger.info(f'u{uid} compilation success in {t}s, {fsize}MB')
 
         if result.returncode==0:
-            fsize = os.stat(pdfname).st_size
+            
             if fsize >= MAX_PDFSIZE:
                 update.message.reply_text('Sorry, pdf is too large for telegram, aborting. Try sending photos using telegram compression')
-                logger.error(f"{pdfname} too large: {fsize/1000000}MB")
+                logger.error(f"{pdfname} too large: {fsize}MB")
             else:
                 logger.info("uploading "+pdfname)
                 update.message.reply_document(
@@ -109,7 +109,7 @@ def filename_input(update, context):
         context.user_data.clear()
         return ConversationHandler.END
 
-    context.user_data['images'] = 0
+    context.user_data['images'] = []
     update.message.reply_text(
         f'Got it. Now send content of your pdf - photos or *.jpg files. '
         'When you are ready to compile pdf, send /compile. Send /cancel to cancel.\n'
@@ -124,33 +124,33 @@ def save_img(file, update, context):
         if not 'images' in context.user_data:
             # Quick way
             newpdf(update.message.from_user, True)
-            context.user_data['images'] = 0
+            context.user_data['images'] = []
             context.user_data['quick'] = True
             context.user_data['largefiles'] = False # set True after first large file
             update.message.reply_text('New PDF. Send /compile to finish when you are ready. Send /cancel to cancel.')
-        elif context.user_data['images'] >= MAX_IMG_N:
+        elif len(context.user_data['images']) >= MAX_IMG_N:
             update.message.reply_text("Sorry, maximum image number reached.\n/compile or /cancel")
             return
         
-        im_id = context.user_data['images']
+        images = context.user_data['images']
+        im_n = len(images)
+
         # try to get file type
         dot_index = file.file_path.rfind('.')
         if dot_index == -1:
-            update.message.reply_text(f"image {im_id+1} - cannot recognize image format")
+            update.message.reply_text(f"image {im_n+1} - cannot recognize image format")
             return
         filetype = file.file_path[dot_index:]
-        
-        logger.info("filetype:" + filetype)
-        
         if not filetype in ['.jpg', '.jpeg', '.png', '.gif']:
-            update.message.reply_text(f"image {im_id+1} - unsupported image format")
+            update.message.reply_text(f"image {im_n+1} - unsupported image format")
             return
-        file.download(f'cache/{uid}-{im_id}')
-        update.message.reply_text(f'image {im_id+1} - ok')
+        filename = f'cache/{uid}-{im_n}{filetype}'
+        file.download(filename)
+        images.append(filename)
+        update.message.reply_text(f'image {im_n+1} - ok')
     except Exception as err:
         logger.error(f"Error saving image (u{uid}): " + str(err))
-        update.message.reply_text(f'image {im_id+1} - error, try again')
-    context.user_data['images'] = im_id+1
+        update.message.reply_text(f'image {im_n+1} - error, try again')
 
 def addfile(update, context):
     """input: .jpg file"""
@@ -167,7 +167,7 @@ def addphoto(update, context):
 
 def compile_handler(update, context):
     # no images
-    if not (context.user_data['images'] > 0):
+    if not (context.user_data['images']):
         update.message.reply_text("Add images first")
         return CONTENT
 
@@ -182,8 +182,7 @@ def cancel(update, context):
     update.message.reply_text("Okay, aborting.")
     if 'images' in context.user_data:
         uid = update.message.from_user.id
-        im_n = context.user_data['images']
-        images = [f'cache/{uid}-{i}.jpg' for i in range(im_n)]
+        images = context.user_data['images']
         try:
             for i in images:
                 os.remove(i)
