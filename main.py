@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, PicklePersistence
-from telegram import ParseMode
+from telegram import ParseMode, Bot
 
 # Enable logging
 logging.basicConfig(
@@ -21,6 +21,7 @@ MAGICK_BIN = 'convert'
 MAGICK, IMG2PDF = range(2)
 MAX_IMG_N = 100
 MAX_FILENAME_LEN = 60
+MAX_PDFSIZE = 20_000_000 # ~20 MB
 
 def pdfcmd(files, pdfname, type=MAGICK, quality=DEFAULT_QUALITY):
     if type == MAGICK:
@@ -29,7 +30,6 @@ def pdfcmd(files, pdfname, type=MAGICK, quality=DEFAULT_QUALITY):
         return 'img2pdf ' + ' '.join(files) + ' -o ' + pdfname
     else:
         raise NotImplementedError()
-pdf_converter = IMG2PDF
 
 
 def compile_pdf(update, context):
@@ -37,23 +37,34 @@ def compile_pdf(update, context):
     quality = context.user_data['quality'] if 'quality' in context.user_data else DEFAULT_QUALITY
     uid = update.message.from_user.id
     im_n = context.user_data['images']
-    images = [f'cache/{uid}-{i}.jpg' for i in range(im_n)]
+    images = [f'cache/{uid}-{i}' for i in range(im_n)]
     pdfname = f'cache/{uid}.pdf'
+
+    # magick is better for large. otherwise pdf is too large
+    pdf_converter = MAGICK if context.user_data['largefiles'] else IMG2PDF 
+    
     args = pdfcmd(images, pdfname, pdf_converter, quality)
-    logger.info(f'compiling {im_n} photos into the {pdfname}:')
+    logger.info(f'compiling {im_n} photos, {pdf_converter} -> {pdfname}:')
     try:
         t = time.time()
         result = subprocess.run(args, shell=True, capture_output=True, check=True, timeout=40)
         t = round(time.time() - t, 2)
-        logger.info(f'compilation success in {t}s. uploading...')
+        logger.info(f'u{uid} compilation success in {t}s')
+
         if result.returncode==0:
-            update.message.reply_document(
-                document=open(pdfname, 'rb'),
-                filename=context.user_data['filename'] + '.pdf'
-            )
+            fsize = os.stat(pdfname).st_size
+            if fsize >= MAX_PDFSIZE:
+                update.message.reply_text('Sorry, pdf is too large for telegram, aborting. Try sending photos using telegram compression')
+                logger.error(f"{pdfname} too large: {fsize/1000000}MB")
+            else:
+                logger.info("uploading "+pdfname)
+                update.message.reply_document(
+                    document=open(pdfname, 'rb'),
+                    filename=context.user_data['filename'] + '.pdf'
+                )
+                update.message.reply_text('here is your pdf')
+                logger.info(f'done uploading')
             os.remove(pdfname)
-            update.message.reply_text('here is your pdf')
-            logger.info(f'done uploading')
         else:
             update.message.reply_text('unknown error. try again later.')
             logger.exception(f'returncode != 0')
@@ -63,7 +74,7 @@ def compile_pdf(update, context):
     except subprocess.TimeoutExpired as err:
         update.message.reply_text('pdf compilation took too long. try adding less photos or using compression instead of jpg files.')
         logger.error("compiler error. too long: " + err.cmd + "\n>>>" + err.output + "<<<")
-    except OSError as err:
+    except Exception as err:
         update.message.reply_text('bot error. try again later.')
         logger.error("compiler error:\n" + str(err))
 
@@ -77,6 +88,7 @@ def newpdf(user, quick=False):
     logger.info(f"New {q}pdf u{ustr}")
 
 def newpdf_handler(update, context):
+    context.user_data['largefiles'] = False
     user = update.message.from_user
     newpdf(user)
     update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML)
@@ -107,24 +119,42 @@ def filename_input(update, context):
     return CONTENT
 
 def save_img(file, update, context):
-    if not 'images' in context.user_data:
-        # Quick way
-        newpdf(update.message.from_user, True)
-        context.user_data['images'] = 0
-        context.user_data['quick'] = True
-        update.message.reply_text('New PDF. Send /compile to finish when you are ready. Send /cancel to cancel.')
-    elif context.user_data['images'] >= MAX_IMG_N:
-        update.message.reply_text("Sorry, maximum image number reached.\n/compile or /cancel")
-        return CONTENT
-    im_id = context.user_data['images']
     uid = update.message.from_user.id
-    file.download(f'cache/{uid}-{im_id}.jpg')
-    update.message.reply_text(f'image {im_id+1} - ok')
+    try:
+        if not 'images' in context.user_data:
+            # Quick way
+            newpdf(update.message.from_user, True)
+            context.user_data['images'] = 0
+            context.user_data['quick'] = True
+            context.user_data['largefiles'] = False # set True after first large file
+            update.message.reply_text('New PDF. Send /compile to finish when you are ready. Send /cancel to cancel.')
+        elif context.user_data['images'] >= MAX_IMG_N:
+            update.message.reply_text("Sorry, maximum image number reached.\n/compile or /cancel")
+            return
+        
+        im_id = context.user_data['images']
+        # try to get file type
+        dot_index = file.file_path.rfind('.')
+        if dot_index == -1:
+            update.message.reply_text(f"image {im_id+1} - cannot recognize image format")
+            return
+        filetype = file.file_path[dot_index:]
+        
+        logger.info("filetype:" + filetype)
+        
+        if not filetype in ['.jpg', '.jpeg', '.png', '.gif']:
+            update.message.reply_text(f"image {im_id+1} - unsupported image format")
+            return
+        file.download(f'cache/{uid}-{im_id}')
+        update.message.reply_text(f'image {im_id+1} - ok')
+    except Exception as err:
+        logger.error(f"Error saving image (u{uid}): " + str(err))
+        update.message.reply_text(f'image {im_id+1} - error, try again')
     context.user_data['images'] = im_id+1
-    return CONTENT
 
 def addfile(update, context):
     """input: .jpg file"""
+    context.user_data['largefiles'] = True
     image = update.message.document.get_file()
     save_img(image, update, context)
     return CONTENT
@@ -136,6 +166,11 @@ def addphoto(update, context):
     return CONTENT
 
 def compile_handler(update, context):
+    # no images
+    if not (context.user_data['images'] > 0):
+        update.message.reply_text("Add images first")
+        return CONTENT
+
     if 'quick' in context.user_data:
         update.message.reply_text("Enter document name")
         return FILENAME
@@ -175,7 +210,8 @@ def quality(update, context):
 
 def help_handler(update, context):
     update.message.reply_text(
-        'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and *.jpg files (sent without compression, \'as file\').\n\n'
+        'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and jpg/png files (sent without compression, \'as file\').\n\n'
+        f'<b>Current limits: ~{int(MAX_PDFSIZE/200_000)} photos or {MAX_PDFSIZE/1000000}MB</b>\n'
         'There are 2 ways:\n'
         '1. send /start or /newpdf, enter pdf name, then send images;\n'
         '2. just send me some images, then /compile and enter pdf name.\n'
@@ -202,6 +238,7 @@ def main():
     except:
         logger.fatal("Can't get API token. Aborting.")
 
+    logger.info("Starting up")
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
@@ -214,7 +251,7 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler(['start','newpdf'], newpdf_handler), # Classic way
-            MessageHandler(Filters.document.jpg, addfile), # Quick way
+            MessageHandler(Filters.document.jpg | Filters.document.mime_type("image/png"), addfile), # Quick ways
             MessageHandler(Filters.photo, addphoto)
         ],
         states={
@@ -224,7 +261,7 @@ def main():
                 # MessageHandler(~Filters.command, invalid_filename)
             ],
             CONTENT: [
-                MessageHandler(Filters.document.jpg, addfile),
+                MessageHandler(Filters.document.jpg | Filters.document.mime_type("image/png"), addfile),
                 MessageHandler(Filters.photo, addphoto),
                 CommandHandler('compile', compile_handler)
             ],
