@@ -74,9 +74,12 @@ def compile_pdf(update, context):
     except subprocess.TimeoutExpired as err:
         update.message.reply_text('pdf compilation took too long. try adding less photos or using compression instead of jpg files.')
         logger.error("compiler error. too long: " + err.cmd + "\n>>>" + err.output + "<<<")
+    except subprocess.CalledProcessError as err:
+        update.message.reply_text('bot error. try again later.')
+        logger.error("compiler error. code not 0: " + err.cmd + "\n>>>" + err.output + "<<<")
     except Exception as err:
         update.message.reply_text('bot error. try again later.')
-        logger.error("compiler error:\n" + str(err))
+        logger.error("compiling error:\n" + str(err))
 
 # --------------------------
 def newpdf(user, quick=False):
