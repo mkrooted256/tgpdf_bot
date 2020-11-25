@@ -48,14 +48,15 @@ def compile_pdf(update, context):
         t = time.time()
         result = subprocess.run(args, shell=True, capture_output=True, check=True, timeout=40)
         t = round(time.time() - t, 2)
-        fsize = os.stat(pdfname).st_size/1000000
-        logger.info(f'u{uid} compilation success in {t}s, {fsize}MB')
+        fsize = os.stat(pdfname).st_size
+        fsize_h = fsize/1000000
+        logger.info(f'u{uid} compilation success in {t}s, {fsize_h}MB')
 
         if result.returncode==0:
             
             if fsize >= MAX_PDFSIZE:
                 update.message.reply_text('Sorry, pdf is too large for telegram, aborting. Try sending photos using telegram compression')
-                logger.error(f"{pdfname} too large: {fsize}MB")
+                logger.error(f"{pdfname} too large: {fsize_h}MB")
             else:
                 logger.info("uploading "+pdfname)
                 update.message.reply_document(
@@ -76,7 +77,7 @@ def compile_pdf(update, context):
         logger.error("compiler error. too long: " + err.cmd + "\n>>>" + err.output + "<<<")
     except subprocess.CalledProcessError as err:
         update.message.reply_text('bot error. try again later.')
-        logger.error("compiler error. code not 0: " + err.cmd + "\n>>>" + err.output + "<<<")
+        logger.error("compiler error. code not 0: %s \n >>> %s <<< \n >>> %s <<<", err.cmd, err.stdout, err.stderr)
     except Exception as err:
         update.message.reply_text('bot error. try again later.')
         logger.error("compiling error:\n" + str(err))
