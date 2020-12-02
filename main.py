@@ -219,9 +219,9 @@ def help_handler(update, context):
         '1. send /start or /newpdf, enter pdf name, then send images;\n'
         '2. just send me some images, then /compile and enter pdf name.\n'
         'You can cancel operation anytime using /cancel; then you will be able to start again.\n'
-        '<i>By the way, I delete all your images right after sending you PDF.</i>\n\n'
+        '<i>By the way, I do not save your images after sending you PDF.</i>\n\n'
         'developer - @mkrooted\n'
-        'also pls consider donating (servers aren\'t free) - 4441114448609220',
+        'also pls consider donating (servers aren\'t free) - 4441114448609220. even 5 uah is awesome',
         parse_mode=ParseMode.HTML
     )
 
