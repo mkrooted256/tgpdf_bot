@@ -197,7 +197,7 @@ def compile_handler(update, context):
     return ConversationHandler.END
 
 def cancel(update, context):
-    update.message.reply_text("Okay, aborting.")
+    update.message.reply_text("Okay, aborting.", reply_markup=ReplyKeyboardRemove())
     if 'images' in context.user_data:
         uid = update.message.from_user.id
         images = context.user_data['images']
