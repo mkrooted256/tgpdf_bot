@@ -258,8 +258,8 @@ def edit_content(update, context):
 
 def signal_handler(signal, frame):
     r = requests.post(
-        f"https://api.telegram.org/bot${token}/sendMessage", 
-        data={'chat_id': 211399446,  'text': f"@abstractpdf_bot is down with signal ${signal}"}
+        f"https://api.telegram.org/bot{token}/sendMessage", 
+        data={'chat_id': 211399446,  'text': f"@abstractpdf_bot is down with signal {signal}"}
     )
 
 def main():
