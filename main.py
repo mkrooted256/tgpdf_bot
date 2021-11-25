@@ -1,5 +1,6 @@
 import subprocess
 import logging
+import requests
 import os
 import time
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, PicklePersistence
@@ -24,6 +25,15 @@ MAGICK, IMG2PDF = range(2)
 MAX_IMG_N = 100
 MAX_FILENAME_LEN = 60
 MAX_PDFSIZE = 20_000_000 # ~20 MB
+
+
+token = None
+
+if "BOT_TOKEN" in os.environ:
+    token = os.environ.get("BOT_TOKEN", None)
+else:
+    logger.fatal("Can't get API token. Aborting.")
+    exit()
 
 def pdfcmd(files, pdfname, type=MAGICK, quality=DEFAULT_QUALITY):
     if type == MAGICK:
@@ -246,24 +256,22 @@ def edit_content(update, context):
 
 # -------------------------
 
+def signal_handler(signal, frame):
+    r = requests.post(
+        f"https://api.telegram.org/bot${token}/sendMessage", 
+        data={'chat_id': 211399446,  'text': f"@abstractpdf_bot is down with signal ${signal}"}
+    )
+
 def main():
     if not os.path.exists("cache"):
         os.mkdir("cache")
-
-    token = None
-
-    if "BOT_TOKEN" in os.environ:
-        token = os.environ.get("BOT_TOKEN", None)
-    else:
-        logger.fatal("Can't get API token. Aborting.")
-        return
 
     logger.info("Starting up")
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
     # Post version 12 this will no longer be necessary
-    updater = Updater(token, use_context=True)
+    updater = Updater(token, use_context=True, user_sig_handler=signal_handler)
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
