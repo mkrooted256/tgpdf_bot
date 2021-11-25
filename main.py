@@ -45,7 +45,7 @@ def pdfcmd(files, pdfname, type=MAGICK, quality=DEFAULT_QUALITY):
 
 
 def compile_pdf(update, context):
-    update.message.reply_text('compiling...\n' 'it can take up to several minutes')
+    update.message.reply_text('compiling...\n' 'it can take up to several minutes', reply_markup=ReplyKeyboardRemove())
     quality = context.user_data['quality'] if 'quality' in context.user_data else DEFAULT_QUALITY
     uid = update.message.from_user.id
     images = context.user_data['images'] # [f'cache/{uid}-{i}' for i in range(im_n)]
