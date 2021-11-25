@@ -4,7 +4,7 @@ import requests
 import os
 import time
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, PicklePersistence
-from telegram import ParseMode, Bot, ReplyKeyboardMarkup
+from telegram import ParseMode, Bot, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD or 4441 1144 6473 5412"""
 
@@ -107,7 +107,7 @@ def newpdf_handler(update, context):
     context.user_data['largefiles'] = False
     user = update.message.from_user
     newpdf(user)
-    update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup([]))
+    update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardRemove())
     return FILENAME
 
 def invalid_filename(update, context):
