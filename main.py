@@ -107,7 +107,7 @@ def newpdf_handler(update, context):
     context.user_data['largefiles'] = False
     user = update.message.from_user
     newpdf(user)
-    update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML)
+    update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup([]))
     return FILENAME
 
 def invalid_filename(update, context):
@@ -306,6 +306,7 @@ def main():
     # dp.add_handler(CommandHandler('quality', quality))
     dp.add_handler(CommandHandler('help', help_handler))
     dp.add_handler(conv_handler)
+    dp.add_handler(MessageHandler(Filters.all, unknown_handler))
 
     # Start the Bot
     updater.start_polling()
