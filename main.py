@@ -3,7 +3,9 @@ import logging
 import os
 import time
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, PicklePersistence
-from telegram import ParseMode, Bot
+from telegram import ParseMode, Bot, ReplyKeyboardMarkup
+
+DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD or 4441 1144 6473 5412"""
 
 # Enable logging
 logging.basicConfig(
@@ -133,7 +135,7 @@ def save_img(file, update, context):
             context.user_data['largefiles'] = False # set True after first large file
             update.message.reply_text('New PDF. Send /compile to finish when you are ready. Send /cancel to cancel.')
         elif len(context.user_data['images']) >= MAX_IMG_N:
-            update.message.reply_text("Sorry, maximum image number reached.\n/compile or /cancel")
+            update.message.reply_text("Sorry, maximum image number reached.\n/compile or /cancel", quote=True)
             return
         
         images = context.user_data['images']
@@ -142,19 +144,21 @@ def save_img(file, update, context):
         # try to get file type
         dot_index = file.file_path.rfind('.')
         if dot_index == -1:
-            update.message.reply_text(f"image {im_n+1} - cannot recognize image format")
+            update.message.reply_text(f"image {im_n+1} - cannot recognize image format", quote=True)
             return
         filetype = file.file_path[dot_index:]
         if not filetype in ['.jpg', '.jpeg', '.png', '.gif']:
-            update.message.reply_text(f"image {im_n+1} - unsupported image format")
+            update.message.reply_text(f"image {im_n+1} - unsupported image format", quote=True)
             return
         filename = f'cache/{uid}-{im_n}{filetype}'
         file.download(filename)
         images.append(filename)
-        update.message.reply_text(f'image {im_n+1} - ok')
+
+        update.message.reply_text(f'image {im_n+1} - ok', quote=True
+        , reply_markup=ReplyKeyboardMarkup([["/compile 🎉"],["/cancel ❌", "/help ℹ"]]))
     except Exception as err:
         logger.error(f"Error saving image (u{uid}): " + str(err))
-        update.message.reply_text(f'image {im_n+1} - error, try again')
+        update.message.reply_text(f'image {im_n+1} - error, try again', quote=True)
 
 def addfile(update, context):
     """input: .jpg file"""
@@ -219,11 +223,26 @@ def help_handler(update, context):
         '1. send /start or /newpdf, enter pdf name, then send images;\n'
         '2. just send me some images, then /compile and enter pdf name.\n'
         'You can cancel operation anytime using /cancel; then you will be able to start again.\n'
-        '<i>By the way, I delete all your images right after sending you PDF.</i>\n\n'
+        '<i>By the way, I do not store your data; everything on server is deleted after successful compilation</i>\n\n'
         'developer - @mkrooted\n'
-        'also pls consider donating (servers aren\'t free) - 4441114448609220',
+        f'also pls consider donating (servers aren\'t free): {DONATIONS_TEXT}',
         parse_mode=ParseMode.HTML
     )
+
+def unknown_handler(update, context):
+    update.message.reply_text(
+        'Unknown command, sorry. Try /cancel or /help'
+    )
+
+# -------------------------
+
+def edit_handler(update, context):
+    update.message.reply_text("Further development is in progress! 🚧")
+    # TODO
+
+def edit_content(update, context):
+    # TODO
+    pass
 
 # -------------------------
 
@@ -232,14 +251,12 @@ def main():
         os.mkdir("cache")
 
     token = None
-    try:
-        with open('token') as f:
-            token = f.read()
-    except IOError as ioerr:
-        logger.fatal("Can't access API token file")
-        logger.fatal(ioerr)
-    except:
+
+    if "BOT_TOKEN" in os.environ:
+        token = os.environ.get("BOT_TOKEN", None)
+    else:
         logger.fatal("Can't get API token. Aborting.")
+        return
 
     logger.info("Starting up")
     """Start the bot."""
@@ -266,11 +283,15 @@ def main():
             CONTENT: [
                 MessageHandler(Filters.document.jpg | Filters.document.mime_type("image/png"), addfile),
                 MessageHandler(Filters.photo, addphoto),
-                CommandHandler('compile', compile_handler)
+                CommandHandler('compile', compile_handler),
+                #
+                # MessageHandler(Filters.updates.edited_message, edit_content)
+                #
             ],
         },
         fallbacks=[
-            CommandHandler('cancel', cancel)
+            CommandHandler('cancel', cancel),
+            MessageHandler(Filters.all, unknown_handler)
         ]
     )
 
