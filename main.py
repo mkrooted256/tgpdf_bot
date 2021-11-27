@@ -6,7 +6,9 @@ import time
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, PicklePersistence
 from telegram import ParseMode, Bot, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
-DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD or 4441 1144 6473 5412"""
+from constants import *
+
+S = StringSupplier()
 
 # Enable logging
 logging.basicConfig(
@@ -14,18 +16,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-# States
-FILENAME, CONTENT, QUICK_FILENAME = range(3)
-
-# pdf converter
-DEFAULT_QUALITY = 100
-MAGICK_BIN = 'convert'
-MAGICK, IMG2PDF = range(2)
-MAX_IMG_N = 100
-MAX_FILENAME_LEN = 60
-MAX_PDFSIZE = 20_000_000 # ~20 MB
-
 
 token = None
 
@@ -45,9 +35,26 @@ def pdfcmd(files, pdfname, type=MAGICK, quality=DEFAULT_QUALITY):
 
 
 def compile_pdf(update, context):
-    update.message.reply_text('compiling...\n' 'it can take up to several minutes', reply_markup=ReplyKeyboardRemove())
+    def handle_compiler_error(message):
+        if 'exhausted' in message:
+            logger.error("compiler error. resources exhausted.")
+            if context.user_data['largefiles']:
+                update.message.reply_text(S('tg_err_too_big_largefiles'), parse_mode=ParseMode.HTML)
+            else:                
+                update.message.reply_text(S('tg_err_too_big'))
+            return True
+        return False
+
+
+    update.message.reply_text(S('tg_info_start_compiling'), reply_markup=ReplyKeyboardRemove())
     quality = context.user_data['quality'] if 'quality' in context.user_data else DEFAULT_QUALITY
+    
     uid = update.message.from_user.id
+    ustr = str(uid)
+    if update.message.from_user.username:
+        ustr += f"(t.me/{update.message.from_user.username})"
+        
+
     images = context.user_data['images'] # [f'cache/{uid}-{i}' for i in range(im_n)]
     pdfname = f'cache/{uid}.pdf'
 
@@ -55,19 +62,23 @@ def compile_pdf(update, context):
     pdf_converter = MAGICK if context.user_data['largefiles'] else IMG2PDF 
     
     args = pdfcmd(images, pdfname, pdf_converter, quality)
-    logger.info(f'compiling {len(images)} photos, {pdf_converter} -> {pdfname}:')
+    logger.info(f'u{ustr} compiling {len(images)} photos, {pdf_converter} -> {pdfname}:')
     try:
         t = time.time()
         result = subprocess.run(args, shell=True, capture_output=True, check=True, timeout=40)
         t = round(time.time() - t, 2)
         fsize = os.stat(pdfname).st_size
         fsize_h = fsize/1000000
-        logger.info(f'u{uid} compilation success in {t}s, {fsize_h}MB')
+        logger.info(f'u{ustr} compilation ended in {t}s, {fsize_h}MB')
 
         if result.returncode==0:
             
             if fsize >= MAX_PDFSIZE:
-                update.message.reply_text('Sorry, pdf is too large for telegram, aborting. Try sending photos using telegram compression')
+                if context.user_data['largefiles']:
+                    update.message.reply_text(S('tg_err_pdf_too_big_largefiles'), parse_mode=ParseMode.HTML)
+                else:
+                    update.message.reply_text(S('tg_err_pdf_too_big'), parse_mode=ParseMode.HTML)
+
                 logger.error(f"{pdfname} too large: {fsize_h}MB")
             else:
                 logger.info("uploading "+pdfname)
@@ -75,24 +86,25 @@ def compile_pdf(update, context):
                     document=open(pdfname, 'rb'),
                     filename=context.user_data['filename'] + '.pdf'
                 )
-                update.message.reply_text('here is your pdf')
+                update.message.reply_text(S('tg_info_pdf_success'))
                 logger.info(f'done uploading')
             os.remove(pdfname)
         else:
-            update.message.reply_text('unknown error. try again later.')
-            logger.exception(f'returncode != 0')
+            logger.exception(f'but returncode != 0')
+            update.message.reply_text(S('tg_err_unknown_error'))
 
         for i in images:
             os.remove(i)
     except subprocess.TimeoutExpired as err:
-        update.message.reply_text('pdf compilation took too long. try adding less photos or using compression instead of jpg files.')
+        update.message.reply_text('pdf compilation took too long. try adding less photos or sending __with__ compression.')
         logger.error("compiler error. too long: " + err.cmd + "\n>>>" + err.output + "<<<")
     except subprocess.CalledProcessError as err:
-        update.message.reply_text('bot error. try again later.')
-        logger.error("compiler error. code not 0: %s \n >>> %s <<< \n >>> %s <<<", err.cmd, err.stdout, err.stderr)
+        if not handle_compiler_error(err.stderr):
+            update.message.reply_text(S('tg_err_bot'))
+        logger.error("compiler error. code not 0.\n    cmd>>>%s<<<\n    stdout>>> %s <<<\n    stderr>>> %s <<<", err.cmd, err.stdout, err.stderr)
     except Exception as err:
-        update.message.reply_text('bot error. try again later.')
-        logger.error("compiling error:\n" + str(err))
+        update.message.reply_text(S('tg_err_bot'))
+        logger.error("Exception!!!:\n" + str(err))
 
 # --------------------------
 def newpdf(user, quick=False):
@@ -101,20 +113,13 @@ def newpdf(user, quick=False):
     if user.username:
         ustr += f"(t.me/{user.username})"
     q = "quick " if quick else ""
-    logger.info(f"New {q}pdf u{ustr}")
+    logger.info(f"u{ustr} New {q}pdf")
 
 def newpdf_handler(update, context):
     context.user_data['largefiles'] = False
     user = update.message.from_user
     newpdf(user)
-    update.message.reply_text(f"New PDF. Enter document name. (/help ?)", parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardRemove())
-    return FILENAME
-
-def invalid_filename(update, context):
-    """Prompt one more time"""
-    update.message.reply_text(
-        "Invalid name. Please, use only <code>a-z, A-Z, 0-9, _, .</code> and space characters. Try again or send /cancel",
-        parse_mode=ParseMode.HTML)
+    update.message.reply_text(S('tg_info_newpdf'), parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardRemove())
     return FILENAME
 
 def filename_input(update, context):
@@ -126,12 +131,7 @@ def filename_input(update, context):
         return ConversationHandler.END
 
     context.user_data['images'] = []
-    update.message.reply_text(
-        f'Got it. Now send content of your pdf - photos or *.jpg files. '
-        'When you are ready to compile pdf, send /compile. Send /cancel to cancel.\n'
-        # '<i>Note: pdf pages will have the same orientation as original images. Therefore you need to rotate them before sending</i>'
-        ,parse_mode=ParseMode.HTML
-    )
+    update.message.reply_text(S('tg_info_newpdf_name_accepted'), parse_mode=ParseMode.HTML)
     return CONTENT
 
 def save_img(file, update, context):
@@ -143,9 +143,9 @@ def save_img(file, update, context):
             context.user_data['images'] = []
             context.user_data['quick'] = True
             context.user_data['largefiles'] = False # set True after first large file
-            update.message.reply_text('New PDF. Send /compile to finish when you are ready. Send /cancel to cancel.')
+            update.message.reply_text(S('tg_info_newpdf_quick'))
         elif len(context.user_data['images']) >= MAX_IMG_N:
-            update.message.reply_text("Sorry, maximum image number reached.\n/compile or /cancel", quote=True)
+            update.message.reply_text(S('tg_info_max_imgs'), quote=True)
             return
         
         images = context.user_data['images']
@@ -154,21 +154,24 @@ def save_img(file, update, context):
         # try to get file type
         dot_index = file.file_path.rfind('.')
         if dot_index == -1:
-            update.message.reply_text(f"image {im_n+1} - cannot recognize image format", quote=True)
+            update.message.reply_text(S('tg_err_no_img_format').format(im_n+1), quote=True)
             return
         filetype = file.file_path[dot_index:]
         if not filetype in ['.jpg', '.jpeg', '.png', '.gif']:
-            update.message.reply_text(f"image {im_n+1} - unsupported image format", quote=True)
+            update.message.reply_text(S('tg_err_unsupported_img_format').format(im_n+1), quote=True)
             return
         filename = f'cache/{uid}-{im_n}{filetype}'
         file.download(filename)
         images.append(filename)
 
-        update.message.reply_text(f'image {im_n+1} - ok', quote=True
+        update.message.reply_text(S('tg_info_img_ok').format(im_n+1), quote=True
         , reply_markup=ReplyKeyboardMarkup([["/compile 🎉"],["/cancel ❌", "/help ℹ"]]))
     except Exception as err:
-        logger.error(f"Error saving image (u{uid}): " + str(err))
-        update.message.reply_text(f'image {im_n+1} - error, try again', quote=True)
+        ustr = str(uid)
+        if update.message.from_user.username:
+            ustr += f"(t.me/{update.message.from_user.username})"
+        logger.error(f"u{ustr} Error saving image: " + str(err))
+        update.message.reply_text(S('tg_err_img_error').format(im_n+1), quote=True)
 
 def addfile(update, context):
     """input: .jpg file"""
@@ -186,18 +189,18 @@ def addphoto(update, context):
 def compile_handler(update, context):
     # no images
     if not (context.user_data['images']):
-        update.message.reply_text("Add images first")
+        update.message.reply_text(S('tg_info_no_imgs'))
         return CONTENT
 
     if 'quick' in context.user_data:
-        update.message.reply_text("Enter document name")
+        update.message.reply_text(S('tg_info_enter_name'))
         return FILENAME
     compile_pdf(update, context)
     context.user_data.clear()
     return ConversationHandler.END
 
 def cancel(update, context):
-    update.message.reply_text("Okay, aborting.", reply_markup=ReplyKeyboardRemove())
+    update.message.reply_text(S('tg_info_cancel'), reply_markup=ReplyKeyboardRemove())
     if 'images' in context.user_data:
         uid = update.message.from_user.id
         images = context.user_data['images']
@@ -205,49 +208,25 @@ def cancel(update, context):
             for i in images:
                 os.remove(i)
         except OSError as err:
-            logger.error(f'Cancelling u{uid}. Something gone wrong while deleting cache.\n'+str(err))
+            ustr = str(uid)
+            if update.message.from_user.username:
+                ustr += f"(t.me/{update.message.from_user.username})"
+            logger.error(f'u{ustr} while cancel: Something gone wrong while deleting cache.\n'+str(err))
     context.user_data.clear()
     return ConversationHandler.END
 
-def quality(update, context):
-    q = context.args[0]
-    try:
-        q = int(q)
-        if q > 100 or q < 10:
-            update.message.reply_text('invalid quality. enter integer from 10 to 100')
-        else:
-            context.user_data['quality'] = q
-            update.message.reply_text(f'jpg quality is now {q}%')
-    except:
-        update.message.reply_text('invalid quality. enter integer from 10 to 100')
-
-    context.user_data.clear()
-    return ConversationHandler.END
 # -------------------------
 
 def help_handler(update, context):
-    update.message.reply_text(
-        'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and jpg/png files (sent without compression, \'as file\').\n\n'
-        f'<b>Current limits: ~{int(MAX_PDFSIZE/200_000)} photos or {MAX_PDFSIZE/1000000}MB</b>\n'
-        'There are 2 ways:\n'
-        '1. send /start or /newpdf, enter pdf name, then send images;\n'
-        '2. just send me some images, then /compile and enter pdf name.\n'
-        'You can cancel operation anytime using /cancel; then you will be able to start again.\n'
-        '<i>By the way, I do not store your data; everything on server is deleted after successful compilation</i>\n\n'
-        'developer - @mkrooted\n'
-        f'also pls consider donating (servers aren\'t free): {DONATIONS_TEXT}',
-        parse_mode=ParseMode.HTML
-    )
+    update.message.reply_text(S('tg_help'), parse_mode=ParseMode.HTML)
 
 def unknown_handler(update, context):
-    update.message.reply_text(
-        'Unknown command, sorry. Try /cancel or /help'
-    )
+    update.message.reply_text(S('tg_err_unknown_cmd'), quote=True)
 
 # -------------------------
 
 def edit_handler(update, context):
-    update.message.reply_text("Further development is in progress! 🚧")
+    update.message.reply_text(S('tg_err_unimplemented'))
     # TODO
 
 def edit_content(update, context):
