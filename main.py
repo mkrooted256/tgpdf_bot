@@ -26,17 +26,18 @@ else:
     exit()
 
 def pdfcmd(files, pdfname, type=MAGICK, quality=DEFAULT_QUALITY):
-    if type == MAGICK:
-        return MAGICK_BIN + ' ' + ' '.join(files) + f' -auto-orient -quality {quality} {pdfname}'
-    elif type == IMG2PDF:
-        return 'img2pdf ' + ' '.join(files) + ' -o ' + pdfname
-    else:
-        raise NotImplementedError()
+    # if type == MAGICK:
+    #     return MAGICK_BIN + ' ' + ' '.join(files) + f' -auto-orient -quality {quality} {pdfname}'
+    # elif type == IMG2PDF:
+    #     return 'img2pdf ' + ' '.join(files) + ' -o ' + pdfname
+    # else:
+    #     raise NotImplementedError()
+    return 'img2pdf ' + ' '.join(files) + ' -o ' + pdfname
 
 
 def compile_pdf(update, context):
     def handle_compiler_error(message):
-        if 'exhausted' in message:
+        if 'exhausted' in str(message):
             logger.error("compiler error. resources exhausted.")
             if context.user_data['largefiles']:
                 update.message.reply_text(S('tg_err_too_big_largefiles'), parse_mode=ParseMode.HTML)
@@ -96,7 +97,7 @@ def compile_pdf(update, context):
         for i in images:
             os.remove(i)
     except subprocess.TimeoutExpired as err:
-        update.message.reply_text('pdf compilation took too long. try adding less photos or sending __with__ compression.')
+        update.message.reply_text(S('tg_err_timeout'), parse_mode=ParseMode.HTML)
         logger.error("compiler error. too long: " + err.cmd + "\n>>>" + err.output + "<<<")
     except subprocess.CalledProcessError as err:
         if not handle_compiler_error(err.stderr):

@@ -48,6 +48,7 @@ STRINGS['tg_err_unknown_error'] = 'unknown error, sorry. try again later or try 
 STRINGS['tg_err_bot'] = 'bot error, sorry. try again later or try sending photos <i>with telegram compression</i>'
 STRINGS['tg_err_unknown_cmd'] = 'Unknown command, sorry. Try /cancel , /start or /help'
 STRINGS['tg_err_unimplemented'] = "Further development is in progress! 🚧"
+STRINGS['tg_err_timeout'] = 'pdf compilation took too long. try adding less photos or sending <i>with telegram compression</i>'
 
 STRINGS['tg_help'] = (
         'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and jpg/png files (sent without compression, \'as file\').\n\n'
