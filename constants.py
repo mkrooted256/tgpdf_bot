@@ -11,6 +11,13 @@ MAX_IMG_N = 100
 MAX_FILENAME_LEN = 60
 MAX_PDFSIZE = 20_000_000 # ~20 MB
 
+# V2. Pymudf settings
+PDF_QUALITY = {
+    "high": {},
+    "mid": {},
+    "low": {}
+}
+
 
 STRINGS = {};
 
@@ -18,6 +25,18 @@ DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD or 4441114464735412"
 
 STRINGS['tg_info_start_compiling'] = (
     'compiling...\n'
+    'it can take up to several minutes'
+)
+STRINGS['tg_info_start_compiling_high'] = (
+    'compiling using original image quality...\n'
+    'it can take up to several minutes'
+)
+STRINGS['tg_info_start_compiling_mid'] = (
+    'compiling using optimized images...\n'
+    'it can take up to several minutes'
+)
+STRINGS['tg_info_start_compiling_low'] = (
+    'compiling using lower quality images...\n'
     'it can take up to several minutes'
 )
 STRINGS['tg_info_pdf_success'] = "here is your pdf"
@@ -41,14 +60,16 @@ STRINGS['tg_err_unsupported_img_format'] = "image {} - unsupported image format"
 STRINGS['tg_err_img_error'] = 'image {} - error, <b>IMAGE SKIPPED</sb>, try again'
 
 STRINGS['tg_err_too_big'] = 'Too many photos, sorry. Aborting.'
-STRINGS['tg_err_too_big_largefiles'] = "Sorry, pdf is too large. Try sending photos <i>with telegram compression</i>"
-STRINGS['tg_err_pdf_too_big'] = 'Sorry, pdf is too large for telegram (too many photos)'
-STRINGS['tg_err_pdf_too_big_largefiles'] = "Sorry, pdf is too large for telegram. Try sending photos <i>with telegram compression</i>"
-STRINGS['tg_err_unknown_error'] = 'unknown error, sorry. try again later or try sending photos <i>with telegram compression</i>'
-STRINGS['tg_err_bot'] = 'bot error, sorry. try again later or try sending photos <i>with telegram compression</i>'
+STRINGS['tg_err_too_big_largefiles'] = "Sorry, pdf is too large. Try again with less images, using lower quality images, or sending with telegram compression"
+STRINGS['tg_err_pdf_too_big'] = 'Sorry, pdf is too large. Try again with less images, using lower quality images, or sending with telegram compression'
+STRINGS['tg_err_pdf_too_big_largefiles'] = "Sorry, pdf is too large for telegram. Try again with telegram compression"
+STRINGS['tg_err_unknown_error'] = 'unknown error, sorry. try again later or try sending images with telegram compression'
+STRINGS['tg_err_bot'] = 'bot error, sorry. try again later. if you are feeling lucky, try using less images, lower quality images, or sending photos with telegram compression'
 STRINGS['tg_err_unknown_cmd'] = 'Unknown command, sorry. Try /cancel , /start or /help'
 STRINGS['tg_err_unimplemented'] = "Further development is in progress! 🚧"
-STRINGS['tg_err_timeout'] = 'pdf compilation took too long. try adding less photos or sending <i>with telegram compression</i>'
+STRINGS['tg_err_timeout'] = 'pdf compilation took too long. try again with less images or lower image quality (e.g. sending as photos and not files)'
+
+STRINGS['tg_warn_quality_too_high'] = "PDF is too big. Trying lower quality."
 
 STRINGS['tg_help'] = (
         'I can create PDF from your images: photos (sent with telegram compression, \'as photo\') and jpg/png files (sent without compression, \'as file\').\n\n'
