@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from telegram.ext import Application, Updater, CommandHandler, MessageHandler, filters as Filters, ConversationHandler, PicklePersistence
 from telegram import Bot, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.error import TimedOut
 from telegram.constants import ParseMode
 
 import shutil
@@ -46,26 +47,33 @@ if token is None:
 
 # V2. Always pymupdf. If pdf is too large, try again with lower quality several times.
 
-def clear_user_cache(uid):
+def clear_user_cache(update) -> bool:
+    uid = update.message.from_user.id
     try:
         shutil.rmtree(f'cache/{uid}')
+        return True
     except OSError as err:
-        logger.error(f'u{uid} while cancel: Something gone wrong while deleting cache.\n'+str(err))
+        logger.error(f'u{uid}: Something gone wrong while deleting cache.\n'+str(err))
+        return False
+
 
 def __pymupdf_compile_pdf(images, filename, quality):
     doc = pymupdf.open()
     for img_path in images:
-        image = Image.open(img_path)
-        if quality != 'high':
+        if quality == 'high':
+            doc.insert_file(img_path)
+        else:
+            image = Image.open(img_path)
             img_path = img_path + '.small.jpg'
-            image.save(img_path, 'jpeg', quality=75)
-        doc.insert_file(img_path)
+            image.save(img_path, 'jpeg', quality=80)
+            doc.insert_file(img_path)
     doc.save(filename)
+    doc.close()
 
-async def compile_pdf(update, context):
+async def compile_pdf(update, context, starting_quality=0):
     # start using original image quality. lower quality until success.
     qs = ['high', 'mid']
-    for quality in qs:
+    for quality in qs[starting_quality:]:
         await update.message.reply_text(S(f'tg_info_start_compiling_{quality}'), reply_markup=ReplyKeyboardRemove())
         
         uid = update.message.from_user.id
@@ -74,7 +82,7 @@ async def compile_pdf(update, context):
             ustr += f"(t.me/{update.message.from_user.username})"
         
         images = context.user_data['images'] # [f'cache/{uid}-{i}' for i in range(im_n)]
-        pdfname = f'cache/{uid}/out.pdf'
+        pdfname = f'cache/{uid}/out-{quality}.pdf'
         pdf_converter = 'pymupdf'
         number_of_images = len(images)
 
@@ -85,12 +93,13 @@ async def compile_pdf(update, context):
             p = Process(target=__pymupdf_compile_pdf, args=(images, pdfname, quality))
             t0 = time.perf_counter()
             p.start()
-            p.join(timeout=40.0)
-            if p.is_alive():
+            try: 
+                p.join(timeout=60.0)
+            except multiprocessing.TimeoutError:
                 # timeout
                 p.terminate()
                 await update.message.reply_text(S('tg_err_timeout'))
-                logger.error("u{ustr} compiler: too long.")
+                logger.error(f"u{ustr} compiler: too long, terminated.")
                 return
             
             t = time.perf_counter() - t0
@@ -98,39 +107,56 @@ async def compile_pdf(update, context):
             fsize_h = fsize/1000000
             logger.info(f'u{ustr} compilation ended in {t:.2}s, {fsize_h}MB')
 
-            if p.exitcode != 0:
+            if quality == qs[-1] and p.exitcode != 0:
                 await update.message.reply_text(S('tg_err_unknown_error'))
                 logger.error(f'u{ustr} returncode != 0, unknown error.')
                 return
             if fsize >= MAX_PDFSIZE:
                 # too big. notify user and try lower quality
-                await update.message.reply_text(S('tg_warn_quality_too_high'))
-                logger.info(f"pdf {pdfname} too large: {fsize_h}MB. Trying lower quality")
+                await update.message.reply_text(S('tg_warn_quality_too_high_n').format(f"{fsize_h:.2}MB"))
+                logger.info(f"pdf {pdfname} too large: {fsize_h:.2}MB. Trying lower quality")
                 continue
             
             # seems to be ok. upload and send pdf
             logger.info("uploading "+pdfname)
-            await update.message.reply_document(
-                document=open(pdfname, 'rb'),
-                filename=context.user_data['filename'] + '.pdf'
-            )
-            await update.message.reply_text(S('tg_info_pdf_success'))
-            logger.info(f'done uploading')
-            clear_user_cache(uid)
+            try:
+                t0 = time.perf_counter()
+                await update.message.reply_document(
+                    document=open(pdfname, 'rb'),
+                    filename=context.user_data['filename'] + '.pdf',
+                    read_timeout=15.0,
+                    write_timeout=45.0,
+                    connect_timeout=15.0
+                )
+                await update.message.reply_text(S('tg_info_pdf_success'))
+                t = time.perf_counter() - t0
+                logger.info(f'u{uid} done uploading. took {t:.2}s')
+                clear_user_cache(update)
+                statistics_file.write(f"{datetime.now().strftime("%Y-%m-%d")},{uid},{update.message.from_user.username},success,{number_of_images}\n")
 
-            statistics_file.write(f"{datetime.now().strftime("%Y-%m-%d")},{uid},{update.message.from_user.username},success,{number_of_images}\n")
+            except TimedOut as err:
+                logger.warning(f'u{uid} - upload timeout')
+                context.user_data['allow_retry'] = 'yes'
+                await update.message.reply_text(S('tg_err_timeout_but_ok'))
+                logger.info(f'u{uid} compiled but upload pending')
+                statistics_file.write(f"{datetime.now().strftime("%Y-%m-%d")},{uid},{update.message.from_user.username},success?,{number_of_images}\n")
+                # return anyways
+                return
 
             return
             
 
         except Exception as err:
             await update.message.reply_text(S('tg_err_bot'))
-            logger.error("Exception!!!:\n" + str(err))
+            logger.error(f"Exception!!!: {str(type(err))}\n" + str(err))
     
     # lowest quality is still too big
     await update.message.reply_text(S('tg_err_pdf_too_big'))
     logger.info(f"pdf {pdfname} too large: {fsize_h}MB. End.")
 
+async def retry_handler(update, context):
+    # todo
+    return ConversationHandler.END
 
 # --------------------------
 def newpdf(user, quick=False):
@@ -155,6 +181,7 @@ async def filename_input(update, context):
     if 'quick' in context.user_data:
         await compile_pdf(update, context)
         context.user_data.clear()
+        logger.info(f"u{update.message.from_user.id} - end")
         return ConversationHandler.END
 
     # start waiting for images
@@ -177,6 +204,10 @@ async def save_img(file, update, context):
         
         images = context.user_data['images']
         im_n = len(images)
+
+        if file.file_size is not None and file.file_size > 16_000_000: # 16 MB
+            await update.message.reply_text(S('tg_err_img_too_big').format(im_n+1), do_quote=True)
+            return
 
         # try to get file type
         dot_index = file.file_path.rfind('.')
@@ -229,14 +260,14 @@ async def compile_handler(update, context):
     # filename provided, yes images, proceed
     await compile_pdf(update, context)
     context.user_data.clear()
-    logger.info("u{update.message.from_user.id} - end")
+    logger.info(f"u{update.message.from_user.id} - end")
     return ConversationHandler.END
 
 async def cancel(update, context):
+    clear_user_cache(update)
     await update.message.reply_text(S('tg_info_cancel'), reply_markup=ReplyKeyboardRemove())
-    clear_user_cache(update.message.from_user.id)
+    logger.info(f"u{update.message.from_user.id} - cancelled")
     context.user_data.clear()
-    logger.info("u{update.message.from_user.id} - cancelled")
     return ConversationHandler.END
 
 # -------------------------
@@ -270,6 +301,8 @@ async def post_init(application:Application):
         f"https://api.telegram.org/bot{token}/sendMessage", 
         data={'chat_id': 211399446,  'text': f"@abstractpdf_bot is up"}
     )
+
+# TODO: register error handler for large images.
 
 def main():
     if not os.path.exists("cache"):
@@ -311,6 +344,9 @@ def main():
                 # MessageHandler(Filters.updates.edited_message, edit_content)
                 #
             ],
+            PDF_PENDING: [
+                CommandHandler('retry', retry_handler),
+            ]
         },
         fallbacks=[
             CommandHandler('cancel', cancel),
