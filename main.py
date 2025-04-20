@@ -3,6 +3,7 @@ import logging
 import requests
 import os
 import time
+from datetime import datetime
 from telegram.ext import Application, Updater, CommandHandler, MessageHandler, filters as Filters, ConversationHandler, PicklePersistence
 from telegram import Bot, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.constants import ParseMode
@@ -16,6 +17,7 @@ from PIL import Image, ImageOps
 
 from constants import *
 
+statistics_file = None
 
 S = StringSupplier()
 
@@ -74,7 +76,8 @@ async def compile_pdf(update, context):
         images = context.user_data['images'] # [f'cache/{uid}-{i}' for i in range(im_n)]
         pdfname = f'cache/{uid}/out.pdf'
         pdf_converter = 'pymupdf'
-        
+        number_of_images = len(images)
+
         logger.info(f'u{ustr} compiling {len(images)} photos, Q={quality}, {pdf_converter} -> {pdfname}:')
 
         try:
@@ -113,6 +116,10 @@ async def compile_pdf(update, context):
             )
             await update.message.reply_text(S('tg_info_pdf_success'))
             logger.info(f'done uploading')
+            clear_user_cache(uid)
+
+            statistics_file.write(f"{datetime.now().strftime("%Y-%m-%d")},{uid},{update.message.from_user.username},success,{number_of_images}\n")
+
             return
             
 
@@ -133,6 +140,7 @@ def newpdf(user, quick=False):
         ustr += f"(t.me/{user.username})"
     q = "quick " if quick else ""
     logger.info(f"u{ustr} New {q}pdf")
+    statistics_file.write(f"{datetime.now().strftime("%Y-%m-%d")},{user.id},{user.username},newpdf,{quick}\n")
 
 async def newpdf_handler(update, context):
     user = update.message.from_user
@@ -220,7 +228,6 @@ async def compile_handler(update, context):
     
     # filename provided, yes images, proceed
     await compile_pdf(update, context)
-    clear_user_cache(update.message.from_user.id)
     context.user_data.clear()
     logger.info("u{update.message.from_user.id} - end")
     return ConversationHandler.END
@@ -268,6 +275,10 @@ def main():
     if not os.path.exists("cache"):
         os.mkdir("cache")
 
+    statistics_file_name = f"stats.{round(time.time())}.txt"
+    global statistics_file
+    statistics_file = open(statistics_file_name, "w", buffering=1) 
+
     logger.info("Starting up")
     """Start the bot."""
 
@@ -314,6 +325,8 @@ def main():
 
     # Start the Bot
     application.run_polling(drop_pending_updates=True)
+
+    statistics_file.close()
 
 
 if __name__ == '__main__':
