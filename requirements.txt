@@ -2,3 +2,4 @@ python-telegram-bot
 pymupdf
 Pillow
 requests
+img2pdf

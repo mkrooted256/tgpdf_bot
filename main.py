@@ -205,7 +205,7 @@ async def save_img(file, update, context):
         images = context.user_data['images']
         im_n = len(images)
 
-        if file.file_size is not None and file.file_size > 16_000_000: # 16 MB
+        if file.file_size is not None and file.file_size > MAX_PDFSIZE:
             await update.message.reply_text(S('tg_err_img_too_big').format(im_n+1), do_quote=True)
             return
 

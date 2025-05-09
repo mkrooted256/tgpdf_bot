@@ -2,3 +2,8 @@
 token
 .vscode/
 cache/
+*.txt
+!requirements.txt
+.venv
+__pycache__
+cache
