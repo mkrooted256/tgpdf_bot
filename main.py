@@ -96,7 +96,9 @@ def clear_user_cache(update) -> bool:
     uid = update.message.from_user.id
     try:
         # delete whole user directory
-        shutil.rmtree(f'cache/{uid}')
+        dir = f'cache/{uid}'
+        if os.path.isdir(dir):
+            shutil.rmtree(dir)
         return True
     except OSError as err:
         logger.error(f'u{uid}: failed to delete cache. '+str(err))
@@ -188,12 +190,15 @@ async def upload_pdf(update, context):
     
     try:
         t0 = time.perf_counter()
+        # This line brings me a lot of pain.
+        # reply_document always raises a TimedOut unless I specify unusually high timeouts.
+        # Moreover, pdf file is still open afterwards so i cannot delete it.
         await update.message.reply_document(
             document=open(pdfname, 'rb'),
             filename=context.user_data['filename'] + '.pdf',
             # read_timeout=15.0,
             write_timeout=30.0,
-            connect_timeout=15.0
+            connect_timeout=30.0
         )
         t = time.perf_counter() - t0
         logger.info(f'u{ustr} upload: done, t={t:.2f}s')
@@ -245,20 +250,13 @@ async def filename_input(update, context):
     text = re.sub('[/\\\\]', ' ', text)
     context.user_data['filename'] = text
     
-    # filename provided after images -> compile
-    if 'quick' in context.user_data:
-        pdf_success = await compile_pdf(update, context)
-        if pdf_success:
-            await upload_pdf(update, context)
-
-        # end session regardless of result
-        clear_user_cache(update)
-        context.user_data.clear()
-        logger.info(f"u{update.message.from_user.id} - end")
+    # In quick mode. Images are provided first, then compile handler, then filename. After filename input we are ready to compile.
+    if context.user_data['quick']:
+        # Reuse compile handler for consistency
+        _ = await compile_handler(update, context)
         return ConversationHandler.END
 
-    # start waiting for images after filename
-    context.user_data['images'] = []
+    # Otherwise, in classic mode. Filename is provided first, then images, then compile handler. No action needed.
     await update.message.reply_text(S('tg_info_newpdf_name_accepted'), parse_mode=ParseMode.HTML)
     return CONTENT
 
@@ -341,8 +339,8 @@ async def compile_handler(update, context):
         await update.message.reply_text(S('tg_info_no_imgs'))
         return CONTENT
 
-    # yes images but need filename
-    if 'quick' in context.user_data:
+    # yes images but need filename. This happens only in quick mode.
+    if context.user_data['filename'] is None:
         await update.message.reply_text(S('tg_info_enter_name'), reply_markup=ReplyKeyboardRemove())
         return FILENAME
     
