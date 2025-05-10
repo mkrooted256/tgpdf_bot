@@ -33,7 +33,7 @@ async def catch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     unique_users.add(user.id)
     file.write(f"{update.update_id},{user.id},{user.username}\n")
-    print(".")
+    print(".", end='', flush=True)
     
 
 def main() -> None:
