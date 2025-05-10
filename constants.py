@@ -89,7 +89,7 @@ STRINGS['tg_help'] = (
         f'<b>Current limits: {LIMITS}</b>\n'
         'This bot collects per-user statistics, but deletes all your images and pdfs as soon as possible after success, failure, or /cancel. '
         'Neverthless, do not use this bot for sensitive info, and don\'t trust random software on the internet.\n\n'
-        'Developer: @mkrooted\n'
+        'Developed by @mkrooted with python-telegram-bot and img2pdf.\n'
         f'If you are enjoying this bot, {DONATIONS_TEXT}'
 )
 
