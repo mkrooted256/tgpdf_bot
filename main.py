@@ -193,7 +193,7 @@ async def upload_pdf(update, context):
             filename=context.user_data['filename'] + '.pdf',
             # read_timeout=15.0,
             write_timeout=30.0,
-            # connect_timeout=5.0
+            connect_timeout=15.0
         )
         t = time.perf_counter() - t0
         logger.info(f'u{ustr} upload: done, t={t:.2f}s')
@@ -234,7 +234,7 @@ def newpdf(update, context, quick=False):
 
 async def newpdf_handler(update, context):
     user = update.message.from_user
-    newpdf(user)
+    newpdf(update, context)
     await update.message.reply_text(S('tg_info_newpdf'), parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardRemove())
     return FILENAME
 
@@ -267,7 +267,7 @@ async def save_img(file, update, context):
     try:
         if not 'images' in context.user_data:
             # This is a beginning of new conversation.
-            newpdf(update.message.from_user, quick=True)
+            newpdf(update, context, quick=True)
             await update.message.reply_text(S('tg_info_newpdf_quick'))
         
         if len(context.user_data['images']) >= MAX_IMG_N:
@@ -313,7 +313,7 @@ async def save_img(file, update, context):
         context.user_data['total_size'] = context.user_data['total_size'] + img_size
 
         await update.message.reply_text(
-            S('tg_info_img_ok').format(im_n+1) + statusbar(context)
+            S('tg_info_img_ok').format(im_n+1) + '\n' + statusbar(context)
             , do_quote=True
         , reply_markup=ReplyKeyboardMarkup([["/compile 🎉"],["/cancel ❌", "/help ℹ"]]))
     except Exception as err:

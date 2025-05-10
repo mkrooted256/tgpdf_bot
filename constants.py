@@ -20,7 +20,7 @@ LIMITS = f"{MAX_IMG_N} imgs, {int(MAX_IMG_SIZE/1e6)} MB per img, {int(MAX_PDFSIZ
 STRINGS = {};
 
 # DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD"""
-DONATIONS_TEXT = """donate to help my friend's father kill russian invaders https://send.monobank.ua/jar/6VqGPBpKeU (details: https://t.me/katotheca/84802)"""
+DONATIONS_TEXT = """donate to help my friend's father kill russian invaders. Details: https://t.me/katotheca/84802, donation link: https://send.monobank.ua/jar/6VqGPBpKeU"""
 
 STRINGS['tg_info_start_compiling'] = (
     'compiling...\n'
@@ -83,11 +83,11 @@ STRINGS['tg_warn_size_retry'] = "PDF is too big. Trying lower quality."
 STRINGS['tg_warn_size_retry_n'] = "PDF is too big ({}). Trying lower quality."
 
 STRINGS['tg_help'] = (
-        'I create PDF from your images: photos (sent with telegram compression, \'as photo\') and jpg/png/gif files (sent without compression, \'as file\').'
-        'Just send me some images and click /compile.'
+        'I create PDF from your images: photos (sent with telegram compression, \'as photo\') and jpg/png/gif files (sent without compression, \'as file\').\n'
+        'Just send me some images and click /compile. '
         'You can cancel adding images using /cancel.\n\n'
         f'<b>Current limits: {LIMITS}</b>\n'
-        'This bot collects per-user statistics, but deletes all your images and pdfs as soon as possible after success, failure, or /cancel.'
+        'This bot collects per-user statistics, but deletes all your images and pdfs as soon as possible after success, failure, or /cancel. '
         'Neverthless, do not use this bot for sensitive info, and don\'t trust random software on the internet.\n\n'
         'Developer: @mkrooted\n'
         f'If you are enjoying this bot, {DONATIONS_TEXT}'
