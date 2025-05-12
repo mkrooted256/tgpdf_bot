@@ -203,6 +203,10 @@ async def upload_pdf(update, context):
         t = time.perf_counter() - t0
         logger.info(f'u{ustr} upload: done, t={t:.2f}s')
         statistics_file.write(f"{datetime.now().strftime("%Y-%m-%d")},{uid},{update.message.from_user.username},success,{number_of_images}\n")
+
+        if REQUEST_DONATION:
+            await update.message.reply_text(S('tg_info_donate'))
+
     except TimedOut as err:
         # Telegram timeout
         t = time.perf_counter() - t0

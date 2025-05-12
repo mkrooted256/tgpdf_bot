@@ -16,11 +16,18 @@ COMPILATION_TIMEOUT = 30.0  # seconds
 POOL_WORKERS = 1
 LIMITS = f"{MAX_IMG_N} imgs, {int(MAX_IMG_SIZE/1e6)} MB per img, {int(MAX_PDFSIZE/1e6)} MB total ({int(MAX_TOTAL_IMG_SIZE/1e6)} MB in low quality mode)"
 
+# Show donation request after successful compilation
+REQUEST_DONATION = True
 
 STRINGS = {};
 
 # DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD"""
 DONATIONS_TEXT = """donate to help my friend's father kill russian invaders. Details: https://t.me/katotheca/84802, donation link: https://send.monobank.ua/jar/6VqGPBpKeU"""
+
+STRINGS['tg_info_donate'] = (
+    "If you are enjoying thi bot, please consider "
+    "donating to help my friend's father kill russian invaders. Details: https://t.me/katotheca/84802, donation link: https://send.monobank.ua/jar/6VqGPBpKeU"
+)
 
 STRINGS['tg_info_start_compiling'] = (
     'compiling...\n'
@@ -38,7 +45,9 @@ STRINGS['tg_info_start_compiling_low'] = (
     'compiling using even lower quality images...\n'
     'it can take up to several minutes'
 )
-STRINGS['tg_info_pdf_success'] = "Uploading PDF..."
+STRINGS['tg_info_pdf_success'] = (
+    'Uploading PDF...'
+)
 STRINGS['tg_info_newpdf'] = "New PDF. Enter document name (/help ?)"
 STRINGS['tg_info_newpdf_name_accepted'] = (
     'Got it. Now send the contents of your pdf: telegram photos, JPG, PNG, GIF.\n'

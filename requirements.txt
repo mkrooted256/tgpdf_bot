@@ -1,5 +1,6 @@
-python-telegram-bot
-pymupdf
-Pillow
-requests
-img2pdf
+# python 3.13
+python-telegram-bot~=22.0
+pymupdf~=1.25.5
+Pillow~=11.2.1
+requests~=2.32.3
+img2pdf~=0.6.1
