@@ -394,13 +394,13 @@ def edit_content(update, context):
 async def post_shutdown(application:Application):
     r = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage", 
-        data={'chat_id': 211399446,  'text': f"!!! @abstractpdf_bot is down"}
+        data={'chat_id': ADMIN_UID,  'text': f"!!! @{BOT_USERNAME} is down"}
     )
     
 async def post_init(application:Application):
     r = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage", 
-        data={'chat_id': 211399446,  'text': f"@abstractpdf_bot is up"}
+        data={'chat_id': ADMIN_UID,  'text': f"@{BOT_USERNAME} is up"}
     )
 
 # TODO: register error handler for large images.
