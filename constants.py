@@ -26,11 +26,11 @@ REQUEST_DONATION = True
 STRINGS = {};
 
 # DONATIONS_TEXT = """https://send.monobank.ua/jar/9f3uvzpYLD"""
-DONATIONS_TEXT = """donate to help my friend's father kill russian invaders. Details: https://t.me/katotheca/84802, donation link: https://send.monobank.ua/jar/6VqGPBpKeU"""
+DONATIONS_TEXT = """donate to kill more russian invaders in Ukraine: https://send.monobank.ua/jar/2XZwjjpkp7"""
 
 STRINGS['tg_info_donate'] = (
     "If you are enjoying this bot, please consider "
-    "donating to help my friend's father kill russian invaders. Details: https://t.me/katotheca/84802, donation link: https://send.monobank.ua/jar/6VqGPBpKeU"
+    "donating to kill more russian invaders in Ukraine: https://send.monobank.ua/jar/2XZwjjpkp7"
 )
 
 STRINGS['tg_info_start_compiling'] = (
